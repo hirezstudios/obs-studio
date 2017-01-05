@@ -179,3 +179,13 @@ static inline int GetProfilePath(char *path, size_t size, const char *file)
 extern bool opt_start_streaming;
 extern bool opt_start_recording;
 extern std::string opt_starting_scene;
+
+//$$ BME: Add custom command line arguments to support background streaming.
+extern std::string opt_starting_rtmp_server;
+extern std::string opt_starting_rtmp_key;
+extern std::string opt_game_executable_name;
+extern std::vector<std::string> opt_sources_to_disable;
+extern bool opt_quit_on_game_exit;
+extern bool opt_hide_main_window;
+extern bool opt_unattended_mode;
+

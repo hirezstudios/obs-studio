@@ -64,3 +64,6 @@
 #endif
 
 #define OBS_INSTALL_DATA_PATH OBS_INSTALL_PREFIX OBS_DATA_PATH
+
+//$$ BME: Hirez Preprocessor defs
+#define HIREZ_DISABLE_AUTOUPDATES 1

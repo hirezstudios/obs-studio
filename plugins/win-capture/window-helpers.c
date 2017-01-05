@@ -344,11 +344,11 @@ static int window_rating(HWND window,
 		    dstr_cmpi(&cur_exe, exe) == 0)
 			total += exe_val + title_val + class_val;
 	} else {
-		if (dstr_cmpi(&cur_class, class) == 0)
+		if (class && dstr_cmpi(&cur_class, class) == 0) //$$ BME: Don't match class if it isn't supplied.
 			total += class_val;
-		if (dstr_cmpi(&cur_title, title) == 0)
+		if (title && dstr_cmpi(&cur_title, title) == 0) //$$ BME: Don't match title if it isn't supplied.
 			total += title_val;
-		if (dstr_cmpi(&cur_exe, exe) == 0)
+		if (exe && dstr_cmpi(&cur_exe, exe) == 0) //$$ BME: Don't match exe if it isn't supplied.
 			total += exe_val;
 	}
 

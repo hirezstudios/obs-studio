@@ -753,8 +753,16 @@ bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 	deactivateWhenNotShowing = obs_data_get_bool(settings, DEACTIVATE_WNS);
 	flip = obs_data_get_bool(settings, FLIP_IMAGE);
 
+	//$$ BME: Allow default video capture device when string is empty
+	// don't detect default device when empty.
+	bool source_enabled = obs_source_enabled(source);
+	if (!source_enabled && video_device_id.empty())
+	{
+		return false;
+	}
+
 	DeviceId id;
-	if (!DecodeDeviceId(id, video_device_id.c_str())) {
+	if (!video_device_id.empty() && !DecodeDeviceId(id, video_device_id.c_str())) { //$$ BME: Allow default video capture device when string is empty
 		blog(LOG_WARNING, "%s: DecodeDeviceId failed",
 			obs_source_get_name(source));
 		return false;
@@ -763,7 +771,15 @@ bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 	PropertiesData data;
 	Device::EnumVideoDevices(data.devices);
 	VideoDevice dev;
-	if (!data.GetDevice(dev, video_device_id.c_str())) {
+
+	//$$ BME: Allow default video capture device when string is empty
+	if (video_device_id.empty() && !data.devices.empty())
+	{
+		dev = data.devices.front();
+		id.name = dev.name;
+		id.path = dev.path;
+	}
+	else if (!data.GetDevice(dev, video_device_id.c_str())) {
 		blog(LOG_WARNING, "%s: data.GetDevice failed",
 			obs_source_get_name(source));
 		return false;

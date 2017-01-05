@@ -67,10 +67,20 @@ string opt_starting_collection;
 string opt_starting_profile;
 string opt_starting_scene;
 
+//$$ BME: Add command line arguments for custom streaming URL
+string opt_starting_rtmp_server;
+string opt_starting_rtmp_key;
+string opt_game_executable_name;
+vector<string> opt_sources_to_disable;
+bool opt_quit_on_game_exit = false;
+bool opt_hide_main_window = false;
+bool opt_unattended_mode = false;
+
 // AMD PowerXpress High Performance Flags
 #ifdef _MSC_VER
 extern "C" __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 #endif
+
 
 QObject *CreateShortcutFilter()
 {
@@ -701,6 +711,11 @@ OBSApp::OBSApp(int &argc, char **argv, profiler_name_store_t *store)
 
 OBSApp::~OBSApp()
 {
+	if (mainWindow && !mainWindow->IsClosing())
+	{
+		mainWindow->close();
+	}
+
 #ifdef __APPLE__
 	bool vsyncDiabled = config_get_bool(globalConfig, "Video",
 			"DisableOSXVSync");
@@ -1315,20 +1330,23 @@ static void main_crash_handler(const char *format, va_list args, void *param)
 	file << text;
 	file.close();
 
-	int ret = MessageBoxA(NULL, CRASH_MESSAGE, "OBS has crashed!",
+	if (!opt_unattended_mode)
+	{
+		int ret = MessageBoxA(NULL, CRASH_MESSAGE, "OBS has crashed!",
 			MB_YESNO | MB_ICONERROR | MB_TASKMODAL);
 
-	if (ret == IDYES) {
-		size_t len = strlen(text);
+		if (ret == IDYES) {
+			size_t len = strlen(text);
 
-		HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE, len);
-		memcpy(GlobalLock(mem), text, len);
-		GlobalUnlock(mem);
+			HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE, len);
+			memcpy(GlobalLock(mem), text, len);
+			GlobalUnlock(mem);
 
-		OpenClipboard(0);
-		EmptyClipboard();
-		SetClipboardData(CF_TEXT, mem);
-		CloseClipboard();
+			OpenClipboard(0);
+			EmptyClipboard();
+			SetClipboardData(CF_TEXT, mem);
+			CloseClipboard();
+		}
 	}
 
 	exit(-1);
@@ -1758,6 +1776,42 @@ int main(int argc, char *argv[])
 		} else if (arg_is(argv[i], "--scene", nullptr)) {
 			if (++i < argc) opt_starting_scene = argv[i];
 		}
+		//$$ BME: Add custom command line arguments to support background streaming.
+		else if (arg_is(argv[i], "--rtmpserver", nullptr)) {
+			if (++i < argc) opt_starting_rtmp_server = argv[i];
+		}
+		else if (arg_is(argv[i], "--rtmpkey", nullptr)) {
+			if (++i < argc) opt_starting_rtmp_key = argv[i];
+		}
+		else if (arg_is(argv[i], "--gameexecutable", nullptr)) {
+			if (++i < argc) opt_game_executable_name = argv[i];
+		}
+		else if (arg_is(argv[i], "--hidemainwindow", nullptr)) {
+			opt_hide_main_window = true;
+		}
+		else if (arg_is(argv[i], "--quitongameexit", nullptr)) {
+			opt_quit_on_game_exit = true;
+		}
+		else if (arg_is(argv[i], "--unattended", nullptr)) {
+			opt_unattended_mode = true;
+		}
+		else if (arg_is(argv[i], "--disablesources", nullptr)) {
+			if (++i < argc)
+			{
+				char buf[256];
+				strncpy_s(buf, argv[i], 256);
+				buf[255] = 0;
+				static const char* DELIMITER = "+";
+				char* context;
+				char* param = strtok_s(buf, DELIMITER, &context);
+				while(param)
+				{
+					opt_sources_to_disable.push_back(param);
+					param = strtok_s(NULL, DELIMITER, &context);
+				}
+			}
+		}
+		//$$ BME: End custom command line arguments to support background streaming.
 	}
 
 #if !OBS_UNIX_STRUCTURE

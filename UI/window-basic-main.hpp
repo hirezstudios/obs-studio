@@ -114,6 +114,7 @@ private:
 	long disableSaving = 1;
 	bool projectChanged = false;
 	bool previewEnabled = true;
+	bool isClosing = false;
 
 	QPointer<QThread> updateCheckThread;
 	QPointer<QThread> logUploadThread;
@@ -286,6 +287,7 @@ private:
 	void ResizeProgram(uint32_t cx, uint32_t cy);
 	void SetCurrentScene(obs_scene_t *scene, bool force = false);
 	static void RenderProgram(void *data, uint32_t cx, uint32_t cy);
+	static void RequestExitProgram(void *data); //$$ BME: Allow plugins to properly exit via UI
 
 	std::vector<QuickTransition> quickTransitions;
 	QPointer<QWidget> programOptions;
@@ -425,6 +427,8 @@ private:
 	static void HotkeyTriggered(void *data, obs_hotkey_id id, bool pressed);
 
 public:
+	bool IsClosing() const { return isClosing; }
+
 	OBSScene      GetCurrentScene();
 
 	void SysTrayNotify(const QString &text, QSystemTrayIcon::MessageIcon n);

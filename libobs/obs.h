@@ -633,6 +633,10 @@ EXPORT void obs_display_destroy(obs_display_t *display);
 EXPORT void obs_display_resize(obs_display_t *display, uint32_t cx,
 		uint32_t cy);
 
+//$$ BME: Add a way for plugins to exit the application safely.
+EXPORT void obs_set_close_callback(void(*draw)(void *param), void* param);
+EXPORT void obs_close_program_safely();
+
 /**
  * Adds a draw callback for this display context
  *

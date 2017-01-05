@@ -1,1 +1,4 @@
-For install instructions please visit https://github.com/jp9000/obs-studio/wiki/Install-Instructions
+For installation and compilation instructions, please follow the guide at:
+https://github.com/jp9000/obs-studio/wiki/Install-Instructions
+
+The modifications provided to OBS studio have only been tested on Windows but may work on other platforms.

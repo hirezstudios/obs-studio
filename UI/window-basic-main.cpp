@@ -596,6 +596,71 @@ void OBSBasic::Load(const char *file)
 	if (!name || !*name)
 		name = curSceneCollection;
 
+	//$$ BME: See if we need to slam in a game executable name provided by command line
+	if(!opt_game_executable_name.empty() || opt_quit_on_game_exit)
+	{
+		size_t count = obs_data_array_count(sources);
+		for (size_t i = 0; i < count; i++) {
+			obs_data_t   *source_data = obs_data_array_item(sources, i);
+
+			const char* source_id = obs_data_get_string(source_data, "id");
+			if (!stricmp(source_id, "game_capture")) {
+				// Replace all game captures names with the command line value
+				obs_data_t* game_capture_settings = obs_data_get_obj(source_data, "settings");
+				if (game_capture_settings) {
+					// Set executable name if needed
+					if (!opt_game_executable_name.empty())
+					{
+						std::string formatted_window_setting("::" + opt_game_executable_name);
+						obs_data_set_string(game_capture_settings, "window", formatted_window_setting.c_str());
+						// Also set priority by executable name
+						obs_data_set_int(game_capture_settings, "priority", 2);
+					}
+
+					// Set quit on disconnect if needed.
+					if (opt_quit_on_game_exit)
+					{
+						obs_data_set_bool(game_capture_settings, "quit_on_game_disconnect", true);
+					}
+
+					obs_data_release(game_capture_settings);
+				}
+			}
+
+			obs_data_release(source_data);
+		}
+	}
+
+	//$$ BME: Allow disabling sources via command line flags
+	if(!opt_sources_to_disable.empty())
+	{
+		// Walk source array
+		size_t count = obs_data_array_count(sources);
+		for (size_t i = 0; i < count; i++) {
+			obs_data_t   *source_data = obs_data_array_item(sources, i);
+
+			const char* source_id = obs_data_get_string(source_data, "id");
+
+			if (source_id && std::find(opt_sources_to_disable.begin(), opt_sources_to_disable.end(), source_id) != opt_sources_to_disable.end())
+			{
+				obs_data_set_bool(source_data, "enabled", false);
+			}
+
+			obs_data_release(source_data);
+		}
+
+		// Also, just see if these any exist in our main data. (support for AuxAudioDevice1/DesktopAudioDevice1)
+		for (const auto& source_to_disable : opt_sources_to_disable)
+		{
+			obs_data_t* found_source = obs_data_get_obj(data, source_to_disable.c_str());
+			if (found_source)
+			{
+				obs_data_set_bool(found_source, "enabled", false);
+				obs_data_release(found_source);
+			}
+		}
+	}
+
 	LoadAudioDevice(DESKTOP_AUDIO_1, 1, data);
 	LoadAudioDevice(DESKTOP_AUDIO_2, 2, data);
 	LoadAudioDevice(AUX_AUDIO_1,     3, data);
@@ -690,6 +755,26 @@ retryScene:
 
 	if (!opt_starting_scene.empty())
 		opt_starting_scene.clear();
+
+	//$$ BME: Add command line arguments for custom streaming URL
+	if (!opt_starting_rtmp_server.empty())
+	{
+		obs_data_t *settings = obs_data_create();
+		obs_data_set_string(settings, "server", opt_starting_rtmp_server.c_str());
+		obs_data_set_string(settings, "key", opt_starting_rtmp_key.c_str());
+
+		obs_service_t *newService = obs_service_create("rtmp_custom",
+			"default_service", settings,
+			nullptr);
+		obs_data_release(settings);
+		if (!newService)
+			return;
+
+		SetService(newService);
+		SaveService();
+
+		obs_service_release(newService);
+	}
 
 	if (opt_start_streaming) {
 		QMetaObject::invokeMethod(this, "StartStreaming",
@@ -1098,8 +1183,10 @@ void OBSBasic::OBSInit()
 {
 	ProfileScope("OBSBasic::OBSInit");
 
+	obs_set_close_callback(&OBSBasic::RequestExitProgram, this);
+
 	const char *sceneCollection = config_get_string(App()->GlobalConfig(),
-			"Basic", "SceneCollectionFile");
+		"Basic", "SceneCollectionFile");
 	char savePath[512];
 	char fileName[512];
 	int ret;
@@ -1108,7 +1195,7 @@ void OBSBasic::OBSInit()
 		throw "Failed to get scene collection name";
 
 	ret = snprintf(fileName, 512, "obs-studio/basic/scenes/%s.json",
-			sceneCollection);
+		sceneCollection);
 	if (ret <= 0)
 		throw "Failed to create scene collection file name";
 
@@ -1157,13 +1244,13 @@ void OBSBasic::OBSInit()
 	InitPrimitives();
 
 	sceneDuplicationMode = config_get_bool(App()->GlobalConfig(),
-				"BasicWindow", "SceneDuplicationMode");
+		"BasicWindow", "SceneDuplicationMode");
 	swapScenesMode = config_get_bool(App()->GlobalConfig(),
-				"BasicWindow", "SwapScenesMode");
+		"BasicWindow", "SwapScenesMode");
 	editPropertiesMode = config_get_bool(App()->GlobalConfig(),
-				"BasicWindow", "EditPropertiesMode");
+		"BasicWindow", "EditPropertiesMode");
 	SetPreviewProgramMode(config_get_bool(App()->GlobalConfig(),
-				"BasicWindow", "PreviewProgramMode"));
+		"BasicWindow", "PreviewProgramMode"));
 
 #define SET_VISIBILITY(name, control) \
 	do { \
@@ -1191,18 +1278,18 @@ void OBSBasic::OBSInit()
 	loaded = true;
 
 	previewEnabled = config_get_bool(App()->GlobalConfig(),
-			"BasicWindow", "PreviewEnabled");
+		"BasicWindow", "PreviewEnabled");
 
 	if (!previewEnabled && !IsPreviewProgramMode())
 		QMetaObject::invokeMethod(this, "EnablePreviewDisplay",
-				Qt::QueuedConnection,
-				Q_ARG(bool, previewEnabled));
+			Qt::QueuedConnection,
+			Q_ARG(bool, previewEnabled));
 
 #ifdef _WIN32
 	uint32_t winVer = GetWindowsVersion();
 	if (winVer > 0 && winVer < 0x602) {
 		bool disableAero = config_get_bool(basicConfig, "Video",
-				"DisableAero");
+			"DisableAero");
 		SetAeroEnabled(!disableAero);
 	}
 #endif
@@ -1211,10 +1298,10 @@ void OBSBasic::OBSInit()
 	RefreshProfiles();
 	disableSaving--;
 
-	auto addDisplay = [this] (OBSQTDisplay *window)
+	auto addDisplay = [this](OBSQTDisplay *window)
 	{
 		obs_display_add_draw_callback(window->GetDisplay(),
-				OBSBasic::RenderMain, this);
+			OBSBasic::RenderMain, this);
 
 		struct obs_video_info ovi;
 		if (obs_get_video_info(&ovi))
@@ -1223,20 +1310,32 @@ void OBSBasic::OBSInit()
 
 	connect(ui->preview, &OBSQTDisplay::DisplayCreated, addDisplay);
 
+	//$$ BME: Command line argument for hiding main UI
+	if (opt_hide_main_window)
+	{
+		hide();
+	}
+
 #ifdef _WIN32
-	SetWin32DropStyle(this);
-	show();
+	if (!opt_hide_main_window) //$$ BME: Command line argument for hiding main UI
+	{
+		SetWin32DropStyle(this);
+		show();
+	}
 #endif
 
 	bool alwaysOnTop = config_get_bool(App()->GlobalConfig(), "BasicWindow",
-			"AlwaysOnTop");
+		"AlwaysOnTop");
 	if (alwaysOnTop) {
 		SetAlwaysOnTop(this, true);
 		ui->actionAlwaysOnTop->setChecked(true);
 	}
 
 #ifndef _WIN32
-	show();
+	if (!opt_hide_main_window) //$$ BME: Command line argument for hiding main UI
+	{
+		show();
+	}
 #endif
 
 	QList<int> defSizes;
@@ -2034,6 +2133,7 @@ void OBSBasic::TimedCheckForUpdates()
 
 void OBSBasic::CheckForUpdates()
 {
+#if !HIREZ_DISABLE_AUTOUPDATES
 #ifdef UPDATE_SPARKLE
 	trigger_sparkle_update();
 #else
@@ -2050,6 +2150,7 @@ void OBSBasic::CheckForUpdates()
 	connect(thread, &RemoteTextThread::Result,
 			this, &OBSBasic::updateFileFinished);
 	updateCheckThread->start();
+#endif
 #endif
 }
 
@@ -2740,6 +2841,12 @@ void OBSBasic::ClearSceneData()
 	blog(LOG_INFO, "------------------------------------------------");
 }
 
+void OBSBasic::RequestExitProgram(void *data) //$$ BME: Allow plugins to properly exit via UI
+{
+	OBSBasic *window = static_cast<OBSBasic*>(data);
+	QApplication::postEvent(window, new QCloseEvent());
+}
+
 void OBSBasic::closeEvent(QCloseEvent *event)
 {
 	if (isVisible())
@@ -2747,7 +2854,10 @@ void OBSBasic::closeEvent(QCloseEvent *event)
 				"BasicWindow", "geometry",
 				saveGeometry().toBase64().constData());
 
-	if (outputHandler && outputHandler->Active()) {
+	bool ignoreCloseDialogs = config_get_bool(GetGlobalConfig(), "General",
+		"IgnoreCloseDialogs");
+
+	if (!ignoreCloseDialogs && outputHandler && outputHandler->Active()) {
 		SetShowing(true);
 
 		QMessageBox::StandardButton button = QMessageBox::question(
@@ -2763,6 +2873,8 @@ void OBSBasic::closeEvent(QCloseEvent *event)
 	QWidget::closeEvent(event);
 	if (!event->isAccepted())
 		return;
+
+	isClosing = true;
 
 	blog(LOG_INFO, SHUTDOWN_SEPARATOR);
 
@@ -2783,6 +2895,8 @@ void OBSBasic::closeEvent(QCloseEvent *event)
 	/* Clear all scene data (dialogs, widgets, widget sub-items, scenes,
 	 * sources, etc) so that all references are released before shutdown */
 	ClearSceneData();
+
+	QApplication::quit();
 }
 
 void OBSBasic::changeEvent(QEvent *event)
@@ -4929,25 +5043,31 @@ void OBSBasic::SystemTrayInit()
 	if (outputHandler && !outputHandler->replayBuffer)
 		sysTrayReplayBuffer->setEnabled(false);
 
-	connect(trayIcon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)),
+	if(!opt_hide_main_window)
+	{
+		connect(trayIcon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)),
 			this,
 			SLOT(IconActivated(QSystemTrayIcon::ActivationReason)));
-	connect(showHide, SIGNAL(triggered()),
-			this, SLOT(ToggleShowHide()));
-	connect(sysTrayStream, SIGNAL(triggered()),
-			this, SLOT(on_streamButton_clicked()));
-	connect(sysTrayRecord, SIGNAL(triggered()),
-			this, SLOT(on_recordButton_clicked()));
-	connect(sysTrayReplayBuffer.data(), &QAction::triggered,
-			this, &OBSBasic::ReplayBufferClicked);
+		connect(showHide, SIGNAL(triggered()),
+				this, SLOT(ToggleShowHide()));
+		connect(sysTrayStream, SIGNAL(triggered()),
+				this, SLOT(on_streamButton_clicked()));
+		connect(sysTrayRecord, SIGNAL(triggered()),
+				this, SLOT(on_recordButton_clicked()));
+		connect(sysTrayReplayBuffer.data(), &QAction::triggered,
+				this, &OBSBasic::ReplayBufferClicked);
+	}
 	connect(exit, SIGNAL(triggered()),
 			this, SLOT(close()));
 
 	trayMenu = new QMenu;
-	trayMenu->addAction(showHide);
-	trayMenu->addAction(sysTrayStream);
-	trayMenu->addAction(sysTrayRecord);
-	trayMenu->addAction(sysTrayReplayBuffer);
+	if(!opt_hide_main_window)
+	{
+		trayMenu->addAction(showHide);
+		trayMenu->addAction(sysTrayStream);
+		trayMenu->addAction(sysTrayRecord);
+		trayMenu->addAction(sysTrayReplayBuffer);
+	}
 	trayMenu->addAction(exit);
 	trayIcon->setContextMenu(trayMenu);
 }

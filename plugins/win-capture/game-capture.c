@@ -35,6 +35,7 @@
 #define SETTING_LIMIT_FRAMERATE  "limit_framerate"
 #define SETTING_CAPTURE_OVERLAYS "capture_overlays"
 #define SETTING_ANTI_CHEAT_HOOK  "anti_cheat_hook"
+#define SETTING_QUIT_ON_GAME_DISCONNECT "quit_on_game_disconnect" //$$ BME: Setting for quitting stream application when our target game is disconnected (on exit, on game crash)
 
 /* deprecated */
 #define SETTING_ANY_FULLSCREEN   "capture_any_fullscreen"
@@ -94,6 +95,7 @@ struct game_capture_config {
 	bool                          limit_framerate : 1;
 	bool                          capture_overlays : 1;
 	bool                          anticheat_hook : 1;
+	bool						  quit_on_game_disconnect : 1; //$$ BME: Setting for quitting stream application when our target game is disconnected (on exit, on game crash)
 };
 
 struct game_capture {
@@ -394,6 +396,10 @@ static inline void get_config(struct game_capture_config *cfg,
 			SETTING_CAPTURE_OVERLAYS);
 	cfg->anticheat_hook = obs_data_get_bool(settings,
 			SETTING_ANTI_CHEAT_HOOK);
+
+	//$$ BME: Setting for quitting stream application when our target game is disconnected (on exit, on game crash)
+	cfg->quit_on_game_disconnect = obs_data_get_bool(settings,
+			SETTING_QUIT_ON_GAME_DISCONNECT);
 
 	scale_str = obs_data_get_string(settings, SETTING_SCALE_RES);
 	ret = sscanf(scale_str, "%"PRIu32"x%"PRIu32,
@@ -1733,6 +1739,17 @@ static void game_capture_tick(void *data, float seconds)
 
 	if (!gc->showing)
 		gc->showing = true;
+
+	//$$ BME: Add ability to quit main application once game executable is lost.
+	if (gc->config.quit_on_game_disconnect && !capture_valid(gc))
+	{
+		if (gc->active)
+		{
+			stop_capture(gc);
+		}
+
+		obs_close_program_safely();
+	}
 }
 
 static inline void game_capture_render_cursor(struct game_capture *gc)

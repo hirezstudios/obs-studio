@@ -118,6 +118,28 @@ void obs_display_resize(obs_display_t *display, uint32_t cx, uint32_t cy)
 	pthread_mutex_unlock(&display->draw_info_mutex);
 }
 
+//$$ BME: Add a way for plugins to exit the application safely.
+struct close_callback {
+	void(*callback)(void *param);
+	void *param;
+} g_close_callback;
+bool g_close_requested = false;
+
+void obs_set_close_callback(void(*callback)(void *param), void* param)
+{
+	g_close_callback.callback = callback;
+	g_close_callback.param = param;
+
+}
+void obs_close_program_safely()
+{
+	if (!g_close_requested)
+	{
+		g_close_requested = true;
+		g_close_callback.callback(g_close_callback.param);
+	}
+}
+
 void obs_display_add_draw_callback(obs_display_t *display,
 		void (*draw)(void *param, uint32_t cx, uint32_t cy),
 		void *param)
