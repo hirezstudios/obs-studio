@@ -1,9 +1,15 @@
 
 OBS for Game Clients
 
-	The purpose of these modifications to OBS are to provide an easy way for game clients to utilize OBS's rich streaming featureset while being mostly a background process, transparent to the user of the game.
+	The purpose of these modifications to OBS are to provide an easy way for game clients 
+	to utilize OBS's rich streaming featureset while being mostly a background process, 
+	transparent to the user of the game.
+	
 	- Command line arguments have been added to start OBS with settings from the game.
-	- OBS can be 'attached' to the game client. If the game client closes for any reason, OBS can shutdown.
+	- OBS can be 'attached' to the game client. 
+	  If the game client closes for any reason, OBS can shutdown.
+	- Option to hide the main window, but retain system tray icon 
+	  with minimal functionality.
 	
 	These changes have only been tested on Windows, but may work on other platforms.
 
@@ -21,4 +27,7 @@ New Command Line Arguments
 	--unattendedmode
 		hides some popup dialogs
 	--disablesources Source1+Source2(+Source3+..)
-		Allows sources defined in a scene to be disabled by command line. Useful for setting up a scene with webcam, but allowing a game to control whether to actually show the webcam window. Alternatively could use different scenes.
+		Allows sources defined in a scene to be disabled by command line. 
+		Useful for setting up a scene with webcam, but allowing a game to control 
+		whether to actually show the webcam window. 
+		Alternatively could use different scenes.
